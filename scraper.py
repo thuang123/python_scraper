@@ -5,6 +5,8 @@ from graphviz import Digraph
 import igraph
 import re
 
+# Starter page
+STARTER_PAGE = "https://en.wikipedia.org/wiki/Cat"
 # Max number of child pages to scrape for each visited page
 PAGE_VISIT_LIMIT = 3
 # Max numbers of connections of links from original parent page
@@ -62,12 +64,12 @@ def getPageLinks(soupObject):
     allLinks = []
     for bodyContent in allBodyContent:
         if len(allLinks) < PAGE_VISIT_LIMIT:
-            allLinks = allLinks + getLinksHelper(bodyContent, PAGE_VISIT_LIMIT)
+            allLinks = allLinks + getLinksHelper(bodyContent)
         else:
             break
     return allLinks
 
-def getLinksHelper(bodyContent, PAGE_VISIT_LIMIT):
+def getLinksHelper(bodyContent):
     anchors = bodyContent.find_all("a")
     links = []
     validWikiPagePattern = "\/wiki\/[A-Z|a-z|_]*[A-Z|a-z]$"
@@ -81,9 +83,7 @@ def getLinksHelper(bodyContent, PAGE_VISIT_LIMIT):
     return links
 
 def main():
-    # Starter page
-    starterPage = "https://en.wikipedia.org/wiki/Cat"
-    graph = poplulateGraph(starterPage, Digraph(), STRAY_LIMIT)
+    graph = poplulateGraph(STARTER_PAGE, Digraph(), STRAY_LIMIT)
     # Graphviz representation output in generated pdf file
     graph.render()
     print graph.source
