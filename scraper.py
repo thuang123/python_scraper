@@ -1,43 +1,48 @@
 import urllib2
 from bs4 import BeautifulSoup
 import pandas as pd
+from graphviz import Digraph
 import igraph
 import re
-import Queue
 
 # Max number of child pages to scrape for each visited page
-PAGE_VISIT_LIMIT = 1
+PAGE_VISIT_LIMIT = 3
+# Max numbers of connections of links from original parent page
+STRAY_LIMIT = 4
 
-def makeGraph(initialPage, graph):
+def poplulateGraph(initialPage, graph, strayLimit):
+    # Setup: Create soup object and retrieve hyperlinks
     page = urllib2.urlopen(initialPage)
     soup = BeautifulSoup(page, "html.parser")
-    links = getPageLinks(soup)
 
+    if strayLimit > 0:
+        links = getPageLinks(soup)
+        strayLimit -= 1
+
+    # Create graph node for current page
     pageTitle = getPageTitleFromLink(initialPage)
-    graph.add_vertex(pageTitle)
+    graph.node(pageTitle, pageTitle)
 
     childPagesToVisit = []
 
+    # Create child graph nodes and save childPagesToVisit next
     for link in links:
         childPageTitle = getPageTitleFromLink(link)
         if not vertexExists(graph, childPageTitle):
-            childPagesToVisit.append("https://en.wikipedia.org/wiki/" + childPageTitle)
-            print initialPage + childPageTitle
-            graph.add_vertex(childPageTitle)
-        graph.add_edges([(pageTitle, childPageTitle)])
-        graph.add_edges([(childPageTitle, pageTitle)])
+            print childPageTitle
+            graph.node(childPageTitle, childPageTitle)
+            if strayLimit > 0:
+                childPagesToVisit.append("https://en.wikipedia.org/wiki/" + childPageTitle)
+        graph.edges([(pageTitle, childPageTitle)])
 
+    # Continue with child pages
     for childPage in childPagesToVisit:
-        graph = makeGraph(childPage, graph)
+        graph = poplulateGraph(childPage, graph, strayLimit)
 
     return graph
 
 def vertexExists(graph, vertex):
-    try:
-        graph.vs.find(name=vertex)
-    except ValueError:
-        return False
-    return True
+    return "label=" + vertex in graph.source
 
 def getPageTitleFromLink(link):
     title = link.split("/wiki/")[1]
@@ -76,9 +81,12 @@ def getLinksHelper(bodyContent, PAGE_VISIT_LIMIT):
     return links
 
 def main():
-    graph = makeGraph("https://en.wikipedia.org/wiki/Cat", igraph.Graph(directed=True))
-    print graph
+    # Starter page
+    starterPage = "https://en.wikipedia.org/wiki/Cat"
+    graph = poplulateGraph(starterPage, Digraph(), STRAY_LIMIT)
+    # Graphviz representation output in generated pdf file
+    graph.render()
+    print graph.source
 
 if __name__ == '__main__':
-    # execute only if run as the entry point into the program
     main()
