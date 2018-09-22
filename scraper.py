@@ -1,47 +1,44 @@
-import urllib2
 from bs4 import BeautifulSoup
-import pandas as pd
 from graphviz import Digraph
+
+import urllib2
 import igraph
 import re
+import sys
 
-# Starter page
-STARTER_PAGE = "https://en.wikipedia.org/wiki/Cat"
-# Max number of child pages to scrape for each visited page
-PAGE_VISIT_LIMIT = 3
-# Max numbers of connections of links from original parent page
-STRAY_LIMIT = 4
+def poplulateGraph(initialPage, graph, strayLimit, visitLimit):
+    try:
+        # Setup: Create soup object and retrieve hyperlinks
+        page = urllib2.urlopen(initialPage)
+        soup = BeautifulSoup(page, "html.parser")
 
-def poplulateGraph(initialPage, graph, strayLimit):
-    # Setup: Create soup object and retrieve hyperlinks
-    page = urllib2.urlopen(initialPage)
-    soup = BeautifulSoup(page, "html.parser")
+        if strayLimit > 0:
+            links = getPageLinks(soup, visitLimit)
+            strayLimit -= 1
 
-    if strayLimit > 0:
-        links = getPageLinks(soup)
-        strayLimit -= 1
+        # Create graph node for current page
+        pageTitle = getPageTitleFromLink(initialPage)
+        graph.node(pageTitle, pageTitle)
 
-    # Create graph node for current page
-    pageTitle = getPageTitleFromLink(initialPage)
-    graph.node(pageTitle, pageTitle)
+        childPagesToVisit = []
 
-    childPagesToVisit = []
+        # Create child graph nodes and save childPagesToVisit next
+        for link in links:
+            childPageTitle = getPageTitleFromLink(link)
+            if not vertexExists(graph, childPageTitle):
+                print childPageTitle
+                graph.node(childPageTitle, childPageTitle)
+                if strayLimit > 0:
+                    childPagesToVisit.append("https://en.wikipedia.org/wiki/" + childPageTitle)
+            graph.edges([(pageTitle, childPageTitle)])
 
-    # Create child graph nodes and save childPagesToVisit next
-    for link in links:
-        childPageTitle = getPageTitleFromLink(link)
-        if not vertexExists(graph, childPageTitle):
-            print childPageTitle
-            graph.node(childPageTitle, childPageTitle)
-            if strayLimit > 0:
-                childPagesToVisit.append("https://en.wikipedia.org/wiki/" + childPageTitle)
-        graph.edges([(pageTitle, childPageTitle)])
+        # Continue with child pages
+        for childPage in childPagesToVisit:
+            graph = poplulateGraph(childPage, graph, strayLimit, visitLimit)
 
-    # Continue with child pages
-    for childPage in childPagesToVisit:
-        graph = poplulateGraph(childPage, graph, strayLimit)
-
-    return graph
+        return graph
+    except urllib2.HTTPError:
+        raise Exception("Invalid wiki page encountered.")
 
 def vertexExists(graph, vertex):
     return "label=" + vertex in graph.source
@@ -53,7 +50,7 @@ def getPageTitleFromLink(link):
     else:
         raise Exception("Unable to numberOfLinksToRetrieve page title.  Invalid wiki page encountered.")
 
-def getPageLinks(soupObject):
+def getPageLinks(soupObject, visitLimit):
     allDivs = soupObject.find_all("div")
     allBodyContent = []
     for div in allDivs:
@@ -63,18 +60,18 @@ def getPageLinks(soupObject):
                 allBodyContent.append(div);
     allLinks = []
     for bodyContent in allBodyContent:
-        if len(allLinks) < PAGE_VISIT_LIMIT:
-            allLinks = allLinks + getLinksHelper(bodyContent)
+        if len(allLinks) < visitLimit:
+            allLinks = allLinks + getLinksHelper(bodyContent, visitLimit)
         else:
             break
     return allLinks
 
-def getLinksHelper(bodyContent):
+def getLinksHelper(bodyContent, visitLimit):
     anchors = bodyContent.find_all("a")
     links = []
     validWikiPagePattern = "\/wiki\/[A-Z|a-z|_]*[A-Z|a-z]$"
     for anchor in anchors:
-        if len(links) < PAGE_VISIT_LIMIT:
+        if len(links) < visitLimit:
             link = anchor.get("href")
             if link is not None and re.match(validWikiPagePattern, link):
                 links.append(link)
@@ -83,10 +80,18 @@ def getLinksHelper(bodyContent):
     return links
 
 def main():
-    graph = poplulateGraph(STARTER_PAGE, Digraph(), STRAY_LIMIT)
-    # Graphviz representation output in generated pdf file
-    graph.render()
-    print graph.source
+    try:
+        wikiInitialPage =  "https://en.wikipedia.org/wiki/" + sys.argv[1]
+        strayLimit = int(sys.argv[2])
+        visitLimit = int(sys.argv[3])
+        graph = poplulateGraph(wikiInitialPage, Digraph(), strayLimit, visitLimit)
+        # Graphviz representation output in generated pdf file
+        graph.render()
+        print graph.source
+    except IndexError as ie:
+        print "Provide appropriate arguments: search topic, page stray limit, and page visit limit."
+    except (TypeError, ValueError) as e:
+        print "Type error encountered.  Provided arguments must be of type string, int, and int."
 
 if __name__ == '__main__':
     main()
