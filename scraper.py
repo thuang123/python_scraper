@@ -70,7 +70,7 @@ def getLinksHelper(bodyContent, visitLimit):
     for anchor in anchors:
         if len(links) < visitLimit:
             link = anchor.get("href")
-            if link is not None and re.match(validWikiPagePattern, link):
+            if link is not None and re.match(validWikiPagePattern, link) and link not in links:
                 links.append(link)
         else:
             break
