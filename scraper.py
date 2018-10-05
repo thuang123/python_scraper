@@ -1,8 +1,6 @@
 from bs4 import BeautifulSoup
 from graphviz import Digraph
-
 import urllib2
-import igraph
 import re
 import sys
 
@@ -34,9 +32,8 @@ def poplulateGraph(initialPage, graph, strayLimit, visitLimit):
 
         # Continue with child pages
         for childPage in childPagesToVisit:
-            graph = poplulateGraph(childPage, graph, strayLimit, visitLimit)
+            poplulateGraph(childPage, graph, strayLimit, visitLimit)
 
-        return graph
     except urllib2.HTTPError:
         raise Exception("Invalid wiki page encountered.")
 
@@ -81,12 +78,18 @@ def getLinksHelper(bodyContent, visitLimit):
 
 def main():
     try:
+        # Initial Wikipedia page
         wikiInitialPage =  "https://en.wikipedia.org/wiki/" + sys.argv[1]
+        # Maximum number of links visited away from wikiInitialPage
         strayLimit = int(sys.argv[2])
+        # Maximum number of links visited on each page
         visitLimit = int(sys.argv[3])
-        graph = poplulateGraph(wikiInitialPage, Digraph(), strayLimit, visitLimit)
+
+        graph = Digraph()
+        poplulateGraph(wikiInitialPage, graph, strayLimit, visitLimit)
+
         # Graphviz representation output in generated pdf file
-        graph.render()
+        graph.render('output/output-graph.gv', view=True)
         print graph.source
     except IndexError as ie:
         print "Provide appropriate arguments: search topic, page stray limit, and page visit limit."
